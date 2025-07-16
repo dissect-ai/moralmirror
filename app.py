@@ -1,7 +1,8 @@
 import streamlit as st
+import requests
 import random
 
-# --- Real-world data approximations (expanded) ---
+# --- Simulation Data ---
 countries = [
     {"name": "India", "education_access": 0.65, "child_mortality": 0.03, "healthcare_quality": 0.6, "avg_internet_mins": 420, "avg_social_mins": 150},
     {"name": "DR Congo", "education_access": 0.43, "child_mortality": 0.09, "healthcare_quality": 0.4, "avg_internet_mins": 280, "avg_social_mins": 120},
@@ -10,133 +11,97 @@ countries = [
 ]
 
 genders = ["female", "male", "non-binary"]
-jobs = ["textile worker", "farmer", "factory assistant", "childcare helper", "street vendor", "delivery biker"]
+jobs = ["textile worker", "farmer", "vendor", "delivery person", "seamstress"]
 
-# --- Simulation Engine ---
 def simulate_life():
     country = random.choice(countries)
     gender = random.choice(genders)
     story = []
-    state = {
-        "dead": False,
-        "age": 0,
-        "country": country["name"],
-        "gender": gender,
-        "job": random.choice(jobs),
-        "attended_school": False,
-        "survived_illness": False,
-    }
+    job = random.choice(jobs)
+    dead = False
+    age = 0
 
-    story.append(f"You are born in {country['name']} and assigned {gender}.")
+    story.append(f"You were born in {country['name']} and assigned {gender}.")
 
-    # Childhood
     if random.random() < country['child_mortality']:
-        story.append("You died before age 5 due to a preventable disease.")
-        state["dead"] = True
-        state["age"] = random.randint(0, 4)
+        story.append("You died before age 5 due to a preventable illness.")
         return story, country
 
-    story.append("You survived childhood — barely. Healthcare access was limited.")
-    state["age"] = 5
+    story.append("You survived childhood. Your parents struggled to afford vaccines.")
+    age = 5
 
-    # School
     if random.random() < country['education_access']:
-        state["attended_school"] = True
-        story.append("You start walking 3km to a government school. You love math, but miss classes often.")
+        story.append("You began school but had to walk barefoot for 3 km.")
     else:
-        story.append("You never attend school. Instead, you collect water and care for siblings.")
+        story.append("You never attended school, instead helping your parents work.")
 
-    state["age"] += 7
-
-    # Teenage illness
     if random.random() < (1 - country['healthcare_quality']):
-        story.append("At age 16, you contract typhoid. There is no medicine available.")
-        state["dead"] = True
-        state["age"] = 16
+        story.append("At 16, you got sick but couldn't afford medicine. You passed away.")
         return story, country
-    else:
-        story.append("You survive a serious illness in your teens thanks to a mobile clinic.")
-        state["survived_illness"] = True
 
-    # Adulthood
-    state["age"] = random.randint(25, 45)
-    story.append(f"You become a {state['job']} to support your family. You earn just enough to survive.")
-    
-    # Optional branching
-    if state["attended_school"]:
-        story.append("You secretly tutor children in your neighborhood and dream of becoming a teacher.")
-    else:
-        story.append("You sometimes wonder what life might've been like if you'd gone to school.")
-
-    # Death
-    story.append(f"You die at age {state['age']} due to workplace exposure in a {state['job']} setting.")
-    state["dead"] = True
+    story.append(f"You became a {job}. It barely pays, but your family depends on you.")
+    story.append(f"You died at {random.randint(25, 45)} due to unsafe work conditions.")
 
     return story, country
 
-# --- Judgment Phase ---
-def moral_mirror(real_life_data, country):
-    output = ["--- 🪞 MORAL MIRROR REFLECTION ---\n"]
-    time_spent = real_life_data["time_online"] * 60
-    spend = real_life_data["spend"]
-    donation = real_life_data["donation"]
-
-    overuse = max(0, time_spent - country["avg_internet_mins"])
+def moral_mirror(data, country):
+    out = ["--- 🪞 MORAL MIRROR REFLECTION ---"]
+    time_mins = data["time_online"] * 60
+    overuse = max(0, time_mins - country['avg_internet_mins'])
 
     if overuse > 0:
-        output.append(f"You spent {time_spent:.0f} minutes online today — that's {overuse:.0f} minutes more than the average in {country['name']}.")
-        output.append("What if half that time was used to teach, help, or heal someone like the life you just witnessed?\n")
+        out.append(f"You used {time_mins:.0f} minutes online today — {overuse:.0f} more than the average in {country['name']}.")
 
-    if spend > 100:
-        meals = int(spend // 2)
-        output.append(f"You spent ${spend} on luxuries this week. That could have fed {meals} children in {country['name']}.")
+    if data["spend"] > 100:
+        meals = int(data["spend"] // 2)
+        out.append(f"You spent ${data['spend']} on luxuries. That could feed {meals} children.")
 
-    if donation == 0:
-        output.append("You donated nothing. Yet even $5 could provide medicine, clean water, or school supplies.")
-        output.append("You can literally save a life for the price of a milkshake.\n")
+    if data["donation"] == 0:
+        out.append("You donated nothing. $5 could change someone's life.")
     else:
-        output.append(f"You donated ${donation}. That may have added a year of life, school, or safety for someone in {country['name']}.\n")
+        out.append(f"You donated ${data['donation']} — a real impact in {country['name']}.")
 
-    output.append("🌍 The simulation ends. But your power hasn’t. Choose action.\n")
-    output.append("👉 [Donate Now](https://www.globalgiving.org/) 👈")
+    out.append("🌍 The simulation ends. But your power hasn't.")
+    out.append("👇 Want to donate right now? 👇")
 
-    return output
+    return out
 
 # --- Streamlit App ---
 st.set_page_config("Moral Mirror", layout="centered")
-st.title("🌐 Moral Mirror — Simulate a Life. Reflect on Yours.")
-st.markdown("Experience one randomly-generated life from around the world. Then compare it to your own digital footprint.")
+st.title("🌐 Moral Mirror — Live a Life, Reflect on Yours")
 
-# Session state for continuity
-if "life" not in st.session_state:
-    st.session_state.life = None
+if "story" not in st.session_state:
+    st.session_state.story = None
     st.session_state.country = None
 
-# Simulate button
 if st.button("▶️ Simulate a Life"):
     story, country = simulate_life()
-    st.session_state.life = story
+    st.session_state.story = story
     st.session_state.country = country
 
-# Display life story
-if st.session_state.life:
-    st.subheader("📖 Life Story")
-    for line in st.session_state.life:
+if st.session_state.story:
+    st.subheader("📖 Simulated Life")
+    for line in st.session_state.story:
         st.markdown(f"- {line}")
 
     st.markdown("---")
-    st.subheader("📊 Your Real-Life Inputs")
-    time = st.slider("How many hours online daily?", 0.0, 12.0, 4.5, step=0.5, key="time")
-    spend = st.slider("How much did you spend on non-essentials this week? ($)", 0, 500, 100, key="spend")
-    donate = st.slider("How much did you donate this week? ($)", 0, 200, 0, key="donate")
+    st.subheader("📊 Your Digital Footprint")
 
-    if st.button("💡 Reflect on Your Impact"):
-        user_data = {
-            "time_online": st.session_state.time,
-            "spend": st.session_state.spend,
-            "donation": st.session_state.donate,
-        }
-        reflection = moral_mirror(user_data, st.session_state.country)
-        st.subheader("🪞 Your Moral Mirror")
-        for line in reflection:
+    time = st.slider("Hours online daily?", 0.0, 12.0, 5.0)
+    spend = st.slider("Weekly luxury spending? ($)", 0, 500, 100)
+    donate = st.slider("How much did you donate? ($)", 0, 200, 0)
+
+    if st.button("💡 Reflect"):
+        data = {"time_online": time, "spend": spend, "donation": donate}
+        mirror = moral_mirror(data, st.session_state.country)
+        st.subheader("🪞 Moral Reflection")
+        for line in mirror:
             st.markdown(f"> {line}")
+
+        if st.button("→ DONATE NOW ←"):
+            try:
+                res = requests.post("http://localhost:4242/create-checkout-session")
+                session_url = res.json()["url"]
+                st.markdown(f"[Click here to complete your donation]({session_url})")
+            except:
+                st.error("Unable to connect to donation backend.")
